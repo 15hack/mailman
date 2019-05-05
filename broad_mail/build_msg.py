@@ -49,6 +49,16 @@ def prt(*args, **kargv):
     s = re_blank.sub("\n\n", s)
     print(s, **kargv)
 
+def subrayar(tag, c="="):
+    txt = tag.get_text()
+    ancho = max(len(l.rstrip()) for l in txt.split("\n"))
+    sub = "=" * ancho
+    if not txt.endswith("\n"):
+        sub = "\n" + sub
+    if txt.endswith("\n"):
+        sub = sub + "\n"
+    tag.append(sub)
+
 
 soup = get(url)
 h1 = soup.find("h1", attrs={"class": "entry-title"})
@@ -71,15 +81,21 @@ for a in content.findAll("a"):
             a.string = url
         else:
             a.append(" (%s)" % url)
-i = 1
+
+for n in content.findAll(["p"] + heads):
+    n.append("\n")
+
+i = 0
 for hs in heads:
     hs = content.findAll(hs)
     if len(hs)>0:
+        pre = ("#" * i)+" "
         for h in hs:
-            h.insert(0 ,("#" * i)+" ")
+            if i == 0:
+                subrayar(h)
+            else:
+                h.insert(0 , pre)
         i + 1
-for n in content.findAll(["p"] + heads):
-    n.append("\n")
 for n in content.findAll(["li"]):
     n.insert(0, "- ")
 prt(content)
