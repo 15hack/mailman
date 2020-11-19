@@ -4,6 +4,7 @@ python archive.py > last.txt
 for l in $(/usr/lib/mailman/bin/list_lists -b | sort); do
 	M=$(/usr/lib/mailman/bin/list_members "$l" | wc -l)
 	A=$(/usr/lib/mailman/bin/list_owners -m "$l" | wc -l)
-	L=$(grep "$l" last.txt | cut -d' ' -f1)
-	echo "$M\t$A\t$L\t$l"
+	L=$(grep "	$l" last.txt | cut -d' ' -f1)
+	ARC=$(/usr/lib/mailman/bin/config_list -o - "$l" | grep "^# href=" | grep '/archive' | cut -d'"' -f 2)
+	echo "$M\t$A\t$L\t$l\t$ARC"
 done
