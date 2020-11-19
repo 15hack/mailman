@@ -1,4 +1,7 @@
 cp _admins.txt admins.txt
+if [ -f "$1" ]; then
+    cat "$1" >>  admins.txt
+fi
 ./owners.sh >> admins.txt
 sort -f admins.txt | uniq -i > a.txt
 ./members.sh > members.txt
