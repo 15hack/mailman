@@ -1,0 +1,213 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 1998-2012 by the Free Software Foundation, Inc.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+import sys
+sys.path.insert(1, '/usr/lib/mailman/bin')
+
+"""List info of all mailing lists.
+
+Usage: %(program)s [options]
+
+Where:
+
+    -p / --public
+        Show only public info.
+
+    --virtual-host-overview=domain
+    -V domain
+        List only those mailing lists that are homed to the given virtual
+        domain.  This only works if the VIRTUAL_HOST_OVERVIEW variable is
+        set.
+
+    --outputfile filename
+    -o filename
+        Output. By default standard out is used.
+
+    -h / --help
+        Print this text and exit.
+
+"""
+
+import sys
+import getopt
+import paths
+
+from Mailman import mm_cfg
+from Mailman import MailList
+from Mailman import Utils
+from Mailman import Errors
+from Mailman.i18n import _
+import json
+import mailbox
+from datetime import datetime
+from email.utils import parsedate_tz, mktime_tz
+from time import time
+import os
+# l=MailList.MailList(Utils.list_names()[0], lock=0)
+
+program = sys.argv[0]
+
+def usage(code, msg=''):
+    if code:
+        fd = sys.stderr
+    else:
+        fd = sys.stdout
+    print >> fd, _(__doc__)
+    if msg:
+        print >> fd, msg
+    sys.exit(code)
+
+def url_key(url):
+    schema, url = url.split("://", 1)
+    dom, path = url.split("/", 1)
+    dom = dom.split(".")
+    dom.reverse()
+    dom = tuple(dom)
+    key = tuple((dom, path, schema))
+    return key
+
+def to_epoch(maildate):
+    input = maildate.strip()
+    time_tuple = parsedate_tz(input)
+    if time_tuple:
+        dt = mktime_tz(time_tuple)
+        return dt
+
+def get_mails(l):
+    if l.ArchiveFileName() and os.path.isfile(l.ArchiveFileName()):
+        n = l.internal_name().lower()
+        mbox = mailbox.mbox(l.ArchiveFileName())
+        for m in mbox:
+            if m["From"] and "15hack@riseup.net" in m["From"]:
+                continue
+            if n not in (m["From"] or "") and n not in (m["To"] or ""):
+                continue
+            yield m
+
+def get_info_mails(l):
+    r={
+        "first_date": None,
+        "last_date": None,
+        "mails": None
+    }
+    for m in get_mails(l):
+      r["mails"] = (r["mails"] or 0) + 1
+      date=to_epoch(m['Date'])
+      if date is not None:
+          if r["first_date"] is None:
+              r["first_date"]=date
+              r["last_date"]=date
+              continue
+          if r["first_date"]>date:
+              r["first_date"]=date
+          if r["last_date"]<date:
+              r["last_date"]=date
+    return r
+
+def main():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'pV:o:h',
+                                   ['public',
+                                    'virtual-host-overview=',
+                                    'outputfile=',
+                                    'help'])
+    except getopt.error, msg:
+        usage(1, msg)
+
+    advertised = 0
+    public = 0
+    vhost = None
+    outfile = None
+    for opt, arg in opts:
+        if opt in ('-h', '--help'):
+            usage(0)
+        elif opt in ('-p', '--public'):
+            public = 1
+        elif opt in ('-V', '--virtual-host-overview'):
+            vhost = arg
+        elif opt in ('-o', '--outputfile'):
+            outfile = arg
+
+
+    names = Utils.list_names()
+    names.sort()
+
+    mlists = []
+    for n in names:
+        l = MailList.MailList(n, lock=0)
+        if public and not l.advertised:
+            continue
+        if vhost and mm_cfg.VIRTUAL_HOST_OVERVIEW and \
+               vhost.find(l.web_page_url) == -1 and \
+               l.web_page_url.find(vhost) == -1:
+            continue
+        mlists.append(l)
+
+    data = {
+        "__timestamp__": time()
+    }
+    webs = set(i.web_page_url for i in mlists)
+    webs = sorted(webs, key=url_key)
+    mlists = sorted(mlists, key=lambda l:l.internal_name())
+    for web in webs:
+        key = web+"listinfo"
+        data[key]=[]
+        for l in mlists:
+            if l.web_page_url!=web:
+                continue
+            rmembers = l.getRegularMemberKeys()
+            dmembers = l.getDigestMemberKeys()
+            members = set(rmembers + dmembers)
+            members = sorted(members)
+            infomail = get_info_mails(l)
+            obj={
+                "mail": l.internal_name(),
+                "description": l.description,
+                "msg_footer": l.msg_footer,
+                "msg_header": l.msg_header,
+                "last_post_time": l.last_post_time,
+                "created_at": l.created_at,
+                "visibility": {
+                    "advertised": l.advertised,
+                    "private_roster": l.private_roster,
+                    "archive_private": l.archive_private,
+                },
+                "url": {
+                    "listinfo":l.GetScriptURL('listinfo', absolute=1),
+                    "archive":l.GetBaseArchiveURL(),
+                },
+            }
+            if not(public and l.archive_private):
+                obj['archive']=get_info_mails(l)
+            if not(public and l.private_roster):
+                obj['users']={
+                    "owner": len(l.owner),
+                    "moderator": len(l.moderator),
+                    "members": len(members),
+                    "total":len(set(l.owner + l.moderator + members))
+                }
+            data[key].append(obj)
+    if outfile is None:
+        print(json.dumps(data, indent=2))
+    else:
+        with(outfile, "w") as f:
+            json.dump(data, f, indent=2)
+
+if __name__ == '__main__':
+    main()
