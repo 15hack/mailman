@@ -63,6 +63,7 @@ import os
 
 program = sys.argv[0]
 
+
 def usage(code, msg=''):
     if code:
         fd = sys.stderr
@@ -73,6 +74,7 @@ def usage(code, msg=''):
         print >> fd, msg
     sys.exit(code)
 
+
 def url_key(url):
     schema, url = url.split("://", 1)
     dom, path = url.split("/", 1)
@@ -82,12 +84,14 @@ def url_key(url):
     key = tuple((dom, path, schema))
     return key
 
+
 def to_epoch(maildate):
     input = maildate.strip()
     time_tuple = parsedate_tz(input)
     if time_tuple:
         dt = mktime_tz(time_tuple)
         return dt
+
 
 def get_mails(l):
     if l.ArchiveFileName() and os.path.isfile(l.ArchiveFileName()):
@@ -100,25 +104,27 @@ def get_mails(l):
                 continue
             yield m
 
+
 def get_info_mails(l):
-    r={
+    r = {
         "first_date": None,
         "last_date": None,
         "mails": None
     }
     for m in get_mails(l):
-      r["mails"] = (r["mails"] or 0) + 1
-      date=to_epoch(m['Date'])
-      if date is not None:
-          if r["first_date"] is None:
-              r["first_date"]=date
-              r["last_date"]=date
-              continue
-          if r["first_date"]>date:
-              r["first_date"]=date
-          if r["last_date"]<date:
-              r["last_date"]=date
+        r["mails"] = (r["mails"] or 0) + 1
+        date = to_epoch(m['Date'])
+        if date is not None:
+            if r["first_date"] is None:
+                r["first_date"] = date
+                r["last_date"] = date
+                continue
+            if r["first_date"] > date:
+                r["first_date"] = date
+            if r["last_date"] < date:
+                r["last_date"] = date
     return r
+
 
 def main():
     try:
@@ -144,7 +150,6 @@ def main():
         elif opt in ('-o', '--outputfile'):
             outfile = arg
 
-
     names = Utils.list_names()
     names.sort()
 
@@ -154,8 +159,8 @@ def main():
         if public and not l.advertised:
             continue
         if vhost and mm_cfg.VIRTUAL_HOST_OVERVIEW and \
-               vhost.find(l.web_page_url) == -1 and \
-               l.web_page_url.find(vhost) == -1:
+                vhost.find(l.web_page_url) == -1 and \
+                l.web_page_url.find(vhost) == -1:
             continue
         mlists.append(l)
 
@@ -164,19 +169,19 @@ def main():
     }
     webs = set(i.web_page_url for i in mlists)
     webs = sorted(webs, key=url_key)
-    mlists = sorted(mlists, key=lambda l:l.internal_name())
+    mlists = sorted(mlists, key=lambda l: l.internal_name())
     for web in webs:
         key = web+"listinfo"
-        data[key]=[]
+        data[key] = []
         for l in mlists:
-            if l.web_page_url!=web:
+            if l.web_page_url != web:
                 continue
             rmembers = l.getRegularMemberKeys()
             dmembers = l.getDigestMemberKeys()
             members = set(rmembers + dmembers)
             members = sorted(members)
             infomail = get_info_mails(l)
-            obj={
+            obj = {
                 "mail": l.internal_name(),
                 "description": l.description,
                 "msg_footer": l.msg_footer,
@@ -189,18 +194,18 @@ def main():
                     "archive_private": l.archive_private,
                 },
                 "url": {
-                    "listinfo":l.GetScriptURL('listinfo', absolute=1),
-                    "archive":l.GetBaseArchiveURL(),
+                    "listinfo": l.GetScriptURL('listinfo', absolute=1),
+                    "archive": l.GetBaseArchiveURL(),
                 },
             }
             if not(public and l.archive_private):
-                obj['archive']=get_info_mails(l)
+                obj['archive'] = get_info_mails(l)
             if not(public and l.private_roster):
-                obj['users']={
+                obj['users'] = {
                     "owner": len(l.owner),
                     "moderator": len(l.moderator),
                     "members": len(members),
-                    "total":len(set(l.owner + l.moderator + members))
+                    "total": len(set(l.owner + l.moderator + members))
                 }
             data[key].append(obj)
     if outfile is None:
@@ -208,6 +213,7 @@ def main():
     else:
         with(outfile, "w") as f:
             json.dump(data, f, indent=2)
+
 
 if __name__ == '__main__':
     main()
