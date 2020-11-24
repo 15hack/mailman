@@ -18,9 +18,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 import sys
-sys.path.insert(1, '/usr/lib/mailman/bin')
+sys.path.insert(0, '/usr/lib/mailman')
 
-"""List info of all mailing lists.
+__doc__ = """Create a json map of all mailing lists.
 
 Usage: %(program)s [options]
 
@@ -42,26 +42,36 @@ Where:
     -h / --help
         Print this text and exit.
 
+If you want use it in cron you can do:
+
+$ touch %(rela_out)s
+$ chmod 600 %(rela_out)s
+
+and add in crontad this rule:
+
+0 0 * * * %(full_path)s -o %(full_out)s
 """
 
-import sys
 import getopt
-import paths
+import json
+import mailbox
+from datetime import datetime
+from email.utils import parsedate_tz, mktime_tz
+from time import time
+from os.path import isfile, isdir, realpath, abspath, basename
+from os import getcwd
 
 from Mailman import mm_cfg
 from Mailman import MailList
 from Mailman import Utils
 from Mailman import Errors
 from Mailman.i18n import _
-import json
-import mailbox
-from datetime import datetime
-from email.utils import parsedate_tz, mktime_tz
-from time import time
-import os
 # l=MailList.MailList(Utils.list_names()[0], lock=0)
 
 program = sys.argv[0]
+full_path = abspath(__file__)
+rela_out =(basename(__file__).split(".", 1)[0])+".json"
+full_out = getcwd()+"/"+rela_out
 
 
 def usage(code, msg=''):
@@ -94,7 +104,7 @@ def to_epoch(maildate):
 
 
 def get_mails(l):
-    if l.ArchiveFileName() and os.path.isfile(l.ArchiveFileName()):
+    if l.ArchiveFileName() and isfile(l.ArchiveFileName()):
         n = l.internal_name().lower()
         mbox = mailbox.mbox(l.ArchiveFileName())
         for m in mbox:
@@ -106,7 +116,10 @@ def get_mails(l):
 
 
 def get_info_mails(l):
+    ok = l.ArchiveFileName() and isfile(l.ArchiveFileName())
     r = {
+        "__exists__": ok,
+        "archive": l.archive,
         "first_date": None,
         "last_date": None,
         "mails": None
@@ -125,6 +138,17 @@ def get_info_mails(l):
                 r["last_date"] = date
     return r
 
+def trim(s):
+    if s is None:
+        return None
+    s = s.strip()
+    if len(s)==0:
+        return None
+    try:
+        s.decode("utf-8")
+    except UnicodeDecodeError:
+        s = s.decode('latin-1').encode("utf-8")
+    return s
 
 def main():
     try:
@@ -176,16 +200,11 @@ def main():
         for l in mlists:
             if l.web_page_url != web:
                 continue
-            rmembers = l.getRegularMemberKeys()
-            dmembers = l.getDigestMemberKeys()
-            members = set(rmembers + dmembers)
-            members = sorted(members)
-            infomail = get_info_mails(l)
             obj = {
                 "mail": l.internal_name(),
-                "description": l.description,
-                "msg_footer": l.msg_footer,
-                "msg_header": l.msg_header,
+                "description": trim(l.description),
+                "msg_header": trim(l.msg_header),
+                #"msg_footer": trim(l.msg_footer),
                 "last_post_time": l.last_post_time,
                 "created_at": l.created_at,
                 "visibility": {
@@ -201,17 +220,21 @@ def main():
             if not(public and l.archive_private):
                 obj['archive'] = get_info_mails(l)
             if not(public and l.private_roster):
+                rmembers = l.getRegularMemberKeys()
+                dmembers = l.getDigestMemberKeys()
+                members = set(rmembers + dmembers)
+                members = sorted(members)
                 obj['users'] = {
-                    "owner": len(l.owner),
-                    "moderator": len(l.moderator),
-                    "members": len(members),
+                    "owner": l.owner,
+                    "moderator": l.moderator,
+                    "members": members,
                     "total": len(set(l.owner + l.moderator + members))
                 }
             data[key].append(obj)
     if outfile is None:
         print(json.dumps(data, indent=2))
     else:
-        with(outfile, "w") as f:
+        with open(outfile, "w") as f:
             json.dump(data, f, indent=2)
 
 
