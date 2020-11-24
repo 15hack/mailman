@@ -114,6 +114,7 @@ def get_mails(l):
             if "15hack@riseup.net" in frm:
                 continue
             sbj = (m["Subject"] or "")
+            sbj = " ".join(sbj.split())
             if re_campaign.search(sbj):
                 continue
             #if n not in frm and n not in (m["To"] or "").lower():
