@@ -60,6 +60,7 @@ from email.utils import parsedate_tz, mktime_tz
 from time import time
 from os.path import isfile, isdir, realpath, abspath, basename
 from os import getcwd
+import re
 
 from Mailman import mm_cfg
 from Mailman import MailList
@@ -72,6 +73,7 @@ program = sys.argv[0]
 full_path = abspath(__file__)
 rela_out =(basename(__file__).split(".", 1)[0])+".json"
 full_out = getcwd()+"/"+rela_out
+re_campaign = re.compile(r"\b15hack\b.*blogs.*[nm]umble.*etc", re.IGNORECASE)
 
 
 def usage(code, msg=''):
@@ -108,10 +110,14 @@ def get_mails(l):
         n = l.internal_name().lower()
         mbox = mailbox.mbox(l.ArchiveFileName())
         for m in mbox:
-            if m["From"] and "15hack@riseup.net" in m["From"]:
+            frm = (m["From"] or "").strip().lower()
+            if "15hack@riseup.net" in frm:
                 continue
-            #if n not in (m["From"] or "").lower() and n not in (m["To"] or "").lower():
-            #    continue 
+            sbj = (m["Subject"] or "")
+            if re_campaign.search(sbj):
+                continue
+            #if n not in frm and n not in (m["To"] or "").lower():
+            #    continue
             yield m
 
 
@@ -147,7 +153,8 @@ def trim(s):
     try:
         s.decode("utf-8")
     except UnicodeDecodeError:
-        s = s.decode('latin-1').encode("utf-8")
+        s = s.decode('latin-1')
+        s = s.encode("utf-8")
     return s
 
 def main():
