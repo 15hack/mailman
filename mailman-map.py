@@ -110,8 +110,8 @@ def get_mails(l):
         for m in mbox:
             if m["From"] and "15hack@riseup.net" in m["From"]:
                 continue
-            if n not in (m["From"] or "") and n not in (m["To"] or ""):
-                continue
+            #if n not in (m["From"] or "") and n not in (m["To"] or ""):
+            #    continue
             yield m
 
 
