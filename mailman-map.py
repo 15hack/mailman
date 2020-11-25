@@ -147,8 +147,9 @@ def get_info_mails(l):
     if r["mails"] == 0 and not(l.archive and ok):
         r["mails"] = None
     base = l.GetBaseArchiveURL().rstrip("/")
-    lbse = len(l.archive_dir().rstrip("/"))
-    arch = iglob(l.archive_dir()+"/**/*.html")
+    adir = l.archive_dir().rstrip("/")
+    lbse = len(adir)
+    arch = iglob(adir+"/**/*.html")
     arch = [base+a[lbse:] for a in arch if basename(a)[:-5].isdigit()]
     arch = sorted(arch)
     r["urls"]=arch
