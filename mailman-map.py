@@ -17,9 +17,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-import sys
-sys.path.insert(0, '/usr/lib/mailman')
-
 __doc__ = """Create a json map of all mailing lists.
 
 Usage: %(program)s [options]
@@ -52,6 +49,9 @@ and add in crontad this rule:
 0 0 * * * %(full_path)s -o %(full_out)s
 """
 
+import sys
+sys.path.insert(0, '/usr/lib/mailman')
+
 import getopt
 import json
 import mailbox
@@ -61,6 +61,7 @@ from time import time
 from os.path import isfile, isdir, realpath, abspath, basename
 from os import getcwd
 import re
+from glob import iglob
 
 from Mailman import mm_cfg
 from Mailman import MailList
@@ -143,8 +144,14 @@ def get_info_mails(l):
                 r["first_date"] = date
             if r["last_date"] < date:
                 r["last_date"] = date
-    if r["mails"] == 0 and not (l.archive and ok):
+    if r["mails"] == 0 and not(l.archive and ok):
         r["mails"] = None
+    base = l.GetBaseArchiveURL().rstrip("/")
+    lbse = len(base)+1
+    arch = iglob(l.archive_dir()+"/**/*.html")
+    arch = [base+a[lbse:] for a in arch if basename(a)[:-5].isdigit()]
+    arch = sorted(arch)
+    r["urls"]=arch
     return r
 
 def trim(s):
