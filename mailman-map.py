@@ -129,10 +129,10 @@ def get_info_mails(l):
         "archive": l.archive,
         "first_date": None,
         "last_date": None,
-        "mails": None
+        "mails": 0
     }
     for m in get_mails(l):
-        r["mails"] = (r["mails"] or 0) + 1
+        r["mails"] = r["mails"] + 1
         date = to_epoch(m['Date'])
         if date is not None:
             if r["first_date"] is None:
@@ -143,6 +143,8 @@ def get_info_mails(l):
                 r["first_date"] = date
             if r["last_date"] < date:
                 r["last_date"] = date
+    if r["mails"] == 0 and not (l.archive and ok):
+        r["mails"] = None
     return r
 
 def trim(s):
