@@ -126,6 +126,7 @@ def get_mails(l):
 def get_info_mails(l):
     ok = l.ArchiveFileName() and isfile(l.ArchiveFileName())
     r = {
+        "__mbox__": l.ArchiveFileName(),
         "__exists__": ok,
         "archive": l.archive,
         "first_date": None,
