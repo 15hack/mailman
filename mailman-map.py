@@ -58,7 +58,7 @@ import mailbox
 from datetime import datetime
 from email.utils import parsedate_tz, mktime_tz
 from time import time
-from os.path import isfile, isdir, realpath, abspath, basename
+from os.path import isfile, isdir, realpath, abspath, basename, getsize
 from os import getcwd
 import re
 from glob import iglob
@@ -128,6 +128,7 @@ def get_info_mails(l):
     r = {
         "__mbox__": l.ArchiveFileName(),
         "__exists__": ok,
+        "__size_": getsize(l.ArchiveFileName()) if ok else None,
         "archive": l.archive,
         "first_date": None,
         "last_date": None,
