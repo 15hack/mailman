@@ -7,8 +7,29 @@ import bs4
 import requests
 import urllib3
 
+from markdownify import markdownify, MarkdownConverter
+
 urllib3.disable_warnings()
 requests.packages.urllib3.disable_warnings()
+
+
+class MyConverter(MarkdownConverter):
+    def convert_a(self, el, text, convert_as_inline):
+        url = el.attrs["href"]
+        if "." in text and text in url:
+            return text
+        return text+ " <{}>".format(url.rstrip("/"))
+        #return super().convert_a(el, text, convert_as_inline)
+
+def my_md(html, **options):
+    return MyConverter(**options).convert(html)
+
+def to_md(s):
+    txt_md = my_md(str(s), bullets="*")
+    txt_md = re.sub(r"^\s*\n", "", txt_md)
+    txt_md = re.sub(r"\n\s*\n\s*\n+", "\n\n", txt_md)
+    txt_md = re.sub(r"\n+#", "\n\n#", txt_md)
+    return txt_md.rstrip()
 
 re_blank = re.compile(r"\n\s*\n")
 heads = ["h" +str(h) for h in range(1,7)]
@@ -36,39 +57,15 @@ if url is None or url.isdigit():
 elif not url.startswith("http"):
     sys.exit(url + " no es una url valida")
 
-
-def prt(*args, **kargv):
-    args = list(args)
-    for i, a in enumerate(args):
-        if isinstance(a, bs4.Tag):
-            args[i] = a.get_text().strip()
-    s = args[0]
-    if len(args) > 1:
-        s = s.format(*args[1:])
-    s = s.lstrip()
-    s = re_blank.sub("\n\n", s)
-    print(s, **kargv)
-
-def subrayar(tag, c="="):
-    txt = tag.get_text()
-    ancho = max(len(l.rstrip()) for l in txt.split("\n"))
-    sub = "=" * ancho
-    if not txt.endswith("\n"):
-        sub = "\n" + sub
-    if txt.endswith("\n"):
-        sub = sub + "\n"
-    tag.append(sub)
-
-
 soup = get(url)
 h1 = soup.find("h1", attrs={"class": "entry-title"})
 
-prt('''
+print('''
 From: 15hack@riseup.net
 Subject: {0}
 
 Share link: {1}
-''', h1, url)
+'''.format(h1.get_text().strip(), url).strip()+"\n")
 
 content = soup.find("div", attrs={"class": "entry-content"})
 for a in content.findAll("a"):
@@ -76,26 +73,5 @@ for a in content.findAll("a"):
     url = a.attrs.get("href", None)
     if len(txt) == 0 or url is None or url.startswith("#"):
         a.unwrap()
-    else:
-        if txt in url:
-            a.string = url
-        else:
-            a.append(" (%s)" % url)
 
-for n in content.findAll(["p"] + heads):
-    n.append("\n")
-
-i = 0
-for hs in heads:
-    hs = content.findAll(hs)
-    if len(hs)>0:
-        pre = ("#" * i)+" "
-        for h in hs:
-            if i == 0:
-                subrayar(h)
-            else:
-                h.insert(0 , pre)
-        i + 1
-for n in content.findAll(["li"]):
-    n.insert(0, "- ")
-prt(content)
+print(to_md(content))
